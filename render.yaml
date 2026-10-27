@@ -3,6 +3,7 @@
 # En el plan gratuito el disco se borra en cada reinicio, así que los juegos se construyen en cada despliegue desde
 # games-dist/catalog.json y el panel de subida está desactivado. Para publicar un juego: añade su ZIP y su portada a
 # games-dist/, apúntalo en catalog.json, haz commit y push; Render vuelve a desplegar solo.
+# SITE_ORIGIN y GAMES_ORIGIN son las direcciones públicas (la propiedad "host" de Render es la interna).
 services:
   - type: web
     name: parologames
@@ -28,9 +29,9 @@ services:
       - key: IP_HASH_SALT
         generateValue: true
       - key: SITE_ORIGIN
-        fromService: { type: web, name: parologames, property: host }
+        value: https://parologames.onrender.com
       - key: GAMES_ORIGIN
-        fromService: { type: web, name: parologames-juegos, property: host }
+        value: https://parologames-juegos.onrender.com
 
   - type: web
     name: parologames-juegos
@@ -56,9 +57,9 @@ services:
       - key: IP_HASH_SALT
         generateValue: true
       - key: SITE_ORIGIN
-        fromService: { type: web, name: parologames, property: host }
+        value: https://parologames.onrender.com
       - key: GAMES_ORIGIN
-        fromService: { type: web, name: parologames-juegos, property: host }
+        value: https://parologames-juegos.onrender.com
       - key: GAMES_CONNECT_SRC
         value: https://www.wikidata.org
       - key: GAMES_IMG_SRC
