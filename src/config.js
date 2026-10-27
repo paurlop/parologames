@@ -57,7 +57,10 @@ export function loadConfig(env = process.env) {
   const origin = (name, devDefault) => {
     let v = env[name]?.trim();
     // A bare host (what Render's blueprint hands over) means https://host.
-    if (v && !/^[a-z][a-z0-9+.-]*:\/\//i.test(v)) v = `https://${v}`;
+    if (v && !/^[a-z][a-z0-9+.-]*:\/\//i.test(v)) {
+      // On Render a blueprint's fromService "host" is the internal service name (no dots); its public host adds .onrender.com.
+      v = `https://${v}${env.RENDER && !v.includes('.') ? '.onrender.com' : ''}`;
+    }
     if (!v) {
       if (isProd) { problems.push(`${name} es obligatoria en producción`); return ''; }
       v = devDefault;
