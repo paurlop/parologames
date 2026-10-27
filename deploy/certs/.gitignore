@@ -1,0 +1,3 @@
+# Certificado y clave de origen (Cloudflare Origin CA). Nunca al repositorio.
+*
+!.gitignore

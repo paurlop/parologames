@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Demo: Pong</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #10202a; color: #e8f4f0; font: 16px system-ui, sans-serif; overflow: hidden; touch-action: none; }
+  canvas { display: block; margin: 0 auto; width: 100vw; height: 100vh; max-width: calc(100vh * 4 / 3); max-height: calc(100vw * 3 / 4); }
+</style>
+</head>
+<body>
+<canvas id="c" width="800" height="600" aria-label="Pong: mueve tu pala con W/S, las flechas, el ratón o el dedo"></canvas>
+<script>
+(() => {
+  const cv = document.getElementById('c');
+  const g = cv.getContext('2d');
+  const W = 800, H = 600, PH = 90, PW = 14;
+  const S = { p: H / 2, ai: H / 2, bx: W / 2, by: H / 2, vx: 0, vy: 0, me: 0, cpu: 0, state: 'ready', keys: {} };
+
+  function serve(dir) {
+    S.bx = W / 2; S.by = H / 2;
+    const a = (Math.random() - 0.5) * 0.8;
+    S.vx = Math.cos(a) * 6 * dir; S.vy = Math.sin(a) * 6;
+  }
+  function start() { if (S.state !== 'play') { S.state = 'play'; if (S.me >= 7 || S.cpu >= 7) { S.me = S.cpu = 0; } serve(Math.random() < 0.5 ? -1 : 1); } }
+
+  addEventListener('keydown', (e) => { S.keys[e.key] = true; if (e.key === ' ' || e.key === 'Enter') start(); if (e.key.startsWith('Arrow')) e.preventDefault(); });
+  addEventListener('keyup', (e) => { S.keys[e.key] = false; });
+  const toY = (clientY) => { const r = cv.getBoundingClientRect(); return ((clientY - r.top) / r.height) * H; };
+  cv.addEventListener('pointermove', (e) => { S.p = toY(e.clientY); });
+  cv.addEventListener('pointerdown', (e) => { S.p = toY(e.clientY); start(); });
+
+  function clampPaddle(y) { return Math.max(PH / 2, Math.min(H - PH / 2, y)); }
+
+  function step() {
+    if (S.keys.w || S.keys.W || S.keys.ArrowUp) S.p -= 8;
+    if (S.keys.s || S.keys.S || S.keys.ArrowDown) S.p += 8;
+    S.p = clampPaddle(S.p);
+    if (S.state !== 'play') return;
+    // CPU: sigue la bola con retraso
+    const target = S.vx > 0 ? S.by : H / 2;
+    S.ai += Math.max(-5.2, Math.min(5.2, (target - S.ai) * 0.09));
+    S.ai = clampPaddle(S.ai);
+    S.bx += S.vx; S.by += S.vy;
+    if (S.by < 8) { S.by = 8; S.vy *= -1; }
+    if (S.by > H - 8) { S.by = H - 8; S.vy *= -1; }
+    const hit = (px, py) => Math.abs(S.by - py) < PH / 2 + 8 && Math.abs(S.bx - px) < PW / 2 + 8;
+    if (S.vx < 0 && hit(30, S.p)) { S.vx = Math.min(14, -S.vx * 1.06); S.vy += (S.by - S.p) * 0.08; }
+    if (S.vx > 0 && hit(W - 30, S.ai)) { S.vx = Math.max(-14, -S.vx * 1.06); S.vy += (S.by - S.ai) * 0.08; }
+    if (S.bx < -20) { S.cpu++; S.state = S.cpu >= 7 ? 'over' : 'ready'; }
+    if (S.bx > W + 20) { S.me++; S.state = S.me >= 7 ? 'over' : 'ready'; }
+  }
+
+  function draw() {
+    g.fillStyle = '#10202a'; g.fillRect(0, 0, W, H);
+    g.fillStyle = '#2f5d50';
+    for (let y = 10; y < H; y += 30) g.fillRect(W / 2 - 2, y, 4, 16);
+    g.fillStyle = '#e8f4f0';
+    g.fillRect(30 - PW / 2, S.p - PH / 2, PW, PH);
+    g.fillRect(W - 30 - PW / 2, S.ai - PH / 2, PW, PH);
+    g.fillStyle = '#ffd34d';
+    g.fillRect(S.bx - 8, S.by - 8, 16, 16);
+    g.fillStyle = '#e8f4f0';
+    g.font = 'bold 56px system-ui, sans-serif'; g.textAlign = 'center';
+    g.fillText(S.me, W / 2 - 80, 70); g.fillText(S.cpu, W / 2 + 80, 70);
+    if (S.state !== 'play') {
+      g.font = 'bold 28px system-ui, sans-serif';
+      const msg = S.state === 'over' ? (S.me > S.cpu ? '¡Has ganado!' : 'Gana la máquina') : 'Pong';
+      g.fillText(msg, W / 2, H / 2 - 20);
+      g.font = '20px system-ui, sans-serif';
+      g.fillText('Pulsa Espacio o toca para sacar · W/S, flechas, ratón o dedo', W / 2, H / 2 + 20);
+      g.fillText('Primero en llegar a 7', W / 2, H / 2 + 50);
+    }
+  }
+
+  let last = performance.now(), acc = 0;
+  function loop(t) {
+    acc += Math.min(100, t - last); last = t;
+    while (acc >= 1000 / 60) { step(); acc -= 1000 / 60; }
+    draw();
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

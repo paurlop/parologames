@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Demo: Ladrillos</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #2a1830; color: #fbe9ff; font: 16px system-ui, sans-serif; overflow: hidden; touch-action: none; }
+  canvas { display: block; margin: 0 auto; width: 100vw; height: 100vh; max-width: calc(100vh * 3 / 4); max-height: calc(100vw * 4 / 3); }
+</style>
+</head>
+<body>
+<canvas id="c" width="480" height="640" aria-label="Ladrillos: mueve la pala con las flechas, A/D, el ratón o el dedo"></canvas>
+<script>
+(() => {
+  const cv = document.getElementById('c');
+  const g = cv.getContext('2d');
+  const W = 480, H = 640, COLS = 8, ROWS = 6, BW = W / COLS, BH = 22, TOP = 80;
+  const COLORS = ['#ff5d8f', '#ff8a5c', '#ffd25c', '#7ee08a', '#5cc8ff', '#b28cff'];
+  let px, ball, bricks, lives, score, state = 'ready', keys = {};
+
+  function newLevel() {
+    bricks = [];
+    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) bricks.push({ x: c * BW, y: TOP + r * BH, alive: true, color: COLORS[r] });
+  }
+  function resetBall() { ball = { x: px, y: H - 60, vx: 0, vy: 0, stuck: true }; }
+  function newGame() { px = W / 2; lives = 3; score = 0; newLevel(); resetBall(); }
+  function launch() {
+    if (state === 'over' || state === 'won') { newGame(); }
+    state = 'play';
+    if (ball.stuck) { ball.stuck = false; ball.vx = (Math.random() - 0.5) * 6; ball.vy = -6; }
+  }
+
+  addEventListener('keydown', (e) => { keys[e.key] = true; if (e.key === ' ' || e.key === 'Enter') launch(); if (e.key.startsWith('Arrow')) e.preventDefault(); });
+  addEventListener('keyup', (e) => { keys[e.key] = false; });
+  const toX = (clientX) => { const r = cv.getBoundingClientRect(); return ((clientX - r.left) / r.width) * W; };
+  cv.addEventListener('pointermove', (e) => { px = toX(e.clientX); });
+  cv.addEventListener('pointerdown', (e) => { px = toX(e.clientX); launch(); });
+
+  function step() {
+    if (keys.ArrowLeft || keys.a || keys.A) px -= 8;
+    if (keys.ArrowRight || keys.d || keys.D) px += 8;
+    px = Math.max(45, Math.min(W - 45, px));
+    if (ball.stuck) { ball.x = px; return; }
+    if (state !== 'play') return;
+    ball.x += ball.vx; ball.y += ball.vy;
+    if (ball.x < 7 || ball.x > W - 7) { ball.vx *= -1; ball.x = Math.max(7, Math.min(W - 7, ball.x)); }
+    if (ball.y < 7) { ball.vy *= -1; ball.y = 7; }
+    if (ball.vy > 0 && ball.y > H - 46 && ball.y < H - 30 && Math.abs(ball.x - px) < 52) {
+      ball.vy = -Math.abs(ball.vy) * 1.02; ball.vx = (ball.x - px) / 7;
+    }
+    for (const b of bricks) {
+      if (!b.alive) continue;
+      if (ball.x > b.x && ball.x < b.x + BW && ball.y > b.y && ball.y < b.y + BH) {
+        b.alive = false; score += 10; ball.vy *= -1; break;
+      }
+    }
+    if (bricks.every((b) => !b.alive)) { state = 'won'; resetBall(); }
+    if (ball.y > H + 10) { lives--; resetBall(); state = lives <= 0 ? 'over' : 'ready'; }
+  }
+
+  function draw() {
+    g.fillStyle = '#2a1830'; g.fillRect(0, 0, W, H);
+    for (const b of bricks) if (b.alive) { g.fillStyle = b.color; g.fillRect(b.x + 2, b.y + 2, BW - 4, BH - 4); }
+    g.fillStyle = '#fbe9ff'; g.fillRect(px - 45, H - 40, 90, 12);
+    g.beginPath(); g.arc(ball.x, ball.y, 7, 0, Math.PI * 2); g.fill();
+    g.font = 'bold 18px system-ui, sans-serif'; g.textAlign = 'left';
+    g.fillText(`Puntos ${score}`, 12, 32);
+    g.textAlign = 'right'; g.fillText('●'.repeat(Math.max(0, lives)), W - 12, 32);
+    if (state !== 'play') {
+      g.textAlign = 'center'; g.font = 'bold 30px system-ui, sans-serif';
+      g.fillText(state === 'over' ? 'Sin vidas' : state === 'won' ? '¡Nivel superado!' : 'Ladrillos', W / 2, H / 2 + 40);
+      g.font = '17px system-ui, sans-serif';
+      g.fillText('Espacio o toca para lanzar', W / 2, H / 2 + 75);
+      g.fillText('Flechas / A-D, ratón o dedo para mover', W / 2, H / 2 + 100);
+    }
+  }
+
+  newGame();
+  let last = performance.now(), acc = 0;
+  function loop(t) {
+    acc += Math.min(100, t - last); last = t;
+    while (acc >= 1000 / 60) { step(); acc -= 1000 / 60; }
+    draw();
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

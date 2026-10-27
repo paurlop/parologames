@@ -1,0 +1,35 @@
+# Todo lo que no sea necesario para ejecutar la app queda fuera del contexto de build.
+# Sobre todo: secretos (.env), datos y copias.
+.env
+.env.*
+.local-admin.txt
+!.env.example
+data/
+backups/
+*.db
+*.db-wal
+*.db-shm
+*.enc
+*.tar.gz
+
+node_modules/
+.git/
+.gitignore
+.github/
+.impeccable/
+.tmp-fonts/
+.claude/
+.vscode/
+.idea/
+
+tests/
+docs/
+deploy/
+coverage/
+*.log
+*.md
+
+Dockerfile
+.dockerignore
+docker-compose*.yml
+compose*.yml

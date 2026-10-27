@@ -1,0 +1,128 @@
+# docker-compose.yml — parologames en producción (un servidor + Cloudflare delante).
+#
+#   docker compose up -d                       arranca app + caddy
+#   docker compose exec app npm run setup-admin
+#   docker compose --profile backup run --rm backup     copia de seguridad puntual (o desde cron/systemd)
+#
+# Variables: .env (ver .env.example). Compose también lo lee para interpolar ${…} aquí.
+
+name: parologames
+
+x-hardening: &hardening
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "5"
+
+services:
+  app:
+    <<: *hardening
+    image: ${APP_IMAGE:-parologames}:${APP_TAG:-latest}
+    build:
+      context: .
+      args:
+        VERSION: ${APP_TAG:-dev}
+        GIT_SHA: ${GIT_SHA:-unknown}
+    env_file: .env
+    environment:
+      # Fijados por la topología de este compose; prevalecen sobre .env.
+      NODE_ENV: production
+      PORT: "3000"
+      GAMES_PORT: "3001"
+      DATA_DIR: /var/lib/parolo/data
+      BACKUP_DIR: /var/lib/parolo/backups
+      TRUST_PROXY: "1"          # un salto: Caddy (que ya resuelve la IP real desde Cloudflare)
+      BACKUP_PASSPHRASE: ""     # la app no necesita la clave de las copias: no se la damos
+    expose: ["3000", "3001"]     # solo red interna; nunca publicados en el host
+    networks: [backend]
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m,mode=1777
+    volumes:
+      - parolo-state:/var/lib/parolo
+    restart: unless-stopped
+    stop_grace_period: 30s
+    pids_limit: 256
+    ulimits:
+      nofile: { soft: 8192, hard: 8192 }
+    deploy:
+      resources:
+        limits: { cpus: "1.5", memory: 1g }
+        reservations: { memory: 256m }
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/healthz',{signal:AbortSignal.timeout(4000)}).then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+
+  caddy:
+    <<: *hardening
+    image: caddy:2.10-alpine
+    cap_add: [NET_BIND_SERVICE]  # escuchar en 80/443; todo lo demás eliminado
+    ports:
+      - "80:80"
+      - "443:443"
+      # Sin 443/udp (HTTP/3): Cloudflare habla con el origen por TCP; HTTP/3 lo da Cloudflare al visitante.
+    environment:
+      SITE_DOMAIN: ${SITE_DOMAIN:?define SITE_DOMAIN en .env}
+      GAMES_DOMAIN: ${GAMES_DOMAIN:?define GAMES_DOMAIN en .env}
+      CADDY_TLS: ${CADDY_TLS:?define CADDY_TLS en .env}
+      CADDY_TLS_GAMES: ${CADDY_TLS_GAMES:-${CADDY_TLS}}
+      ADMIN_PATH: ${ADMIN_PATH:-/panel}
+      ADMIN_ALLOW_IPS: ${ADMIN_ALLOW_IPS:-0.0.0.0/0 ::/0}
+      ADMIN_UPLOAD_MAX: ${ADMIN_UPLOAD_MAX:-720MB}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./deploy/certs:/etc/caddy/certs:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=16m
+    networks: [backend, edge]
+    depends_on:
+      app:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits: { cpus: "0.5", memory: 256m }
+
+  # Trabajo de copia de seguridad (no es un demonio). Se lanza bajo demanda o desde un
+  # temporizador systemd/cron del host: así la programación, los logs y las alertas
+  # quedan en el host (journalctl, OnFailure=) y no hace falta un cron dentro de un contenedor.
+  # Es el único servicio que recibe BACKUP_PASSPHRASE. Sin red.
+  backup:
+    <<: *hardening
+    profiles: [backup]
+    image: ${APP_IMAGE:-parologames}:${APP_TAG:-latest}
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      DATA_DIR: /var/lib/parolo/data
+      BACKUP_DIR: /var/lib/parolo/backups
+    command: ["node", "scripts/backup.js"]
+    network_mode: none
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m,mode=1777
+    volumes:
+      - parolo-state:/var/lib/parolo
+    restart: "no"
+    healthcheck:
+      disable: true
+    deploy:
+      resources:
+        limits: { cpus: "1.0", memory: 512m }
+
+networks:
+  backend:
+    internal: true   # sin salida a Internet: la app no necesita llamar a nadie
+  edge: {}
+
+volumes:
+  parolo-state:      # /var/lib/parolo → data/ (DATA_DIR) y backups/
+  caddy-data:        # certificados y estado ACME de Caddy
+  caddy-config:

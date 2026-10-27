@@ -1,0 +1,23 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "bounce-easing",
+        "value": "cubic-bezier(0.25, 1.55, 0.45, 1)",
+        "createdAt": "2026-10-26T20:14:20.300Z",
+        "reason": "direction contract: mechanical snap with one overshoot (surface brief src/views)"
+      },
+      {
+        "rule": "codex-grid-background",
+        "value": "*",
+        "files": [
+          "public/css/site.css"
+        ],
+        "createdAt": "2026-10-26T20:14:27.501Z",
+        "reason": "LCD pixel matrix on the console screen and counter badge: a real display surface, per direction contract"
+      }
+    ]
+  }
+}

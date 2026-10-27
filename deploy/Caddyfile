@@ -1,0 +1,161 @@
+# deploy/Caddyfile — proxy inverso de parologames (Caddy ≥ 2.8), detrás de Cloudflare.
+#
+# Variables de entorno (las pasa docker-compose.yml desde .env):
+#   SITE_DOMAIN       parologames.com
+#   GAMES_DOMAIN      parolo-play.com  (o play.parologames.com)
+#   CADDY_TLS         argumentos de la directiva `tls`:
+#                       "/etc/caddy/certs/site.pem /etc/caddy/certs/site.key"      → certificado de origen de Cloudflare (recomendado)
+#                       "tu-email@example.com"                                      → HTTPS automático con ACME (Let's Encrypt/ZeroSSL)
+#                       "internal"                                                  → CA local, solo para pruebas
+#   CADDY_TLS_GAMES   igual, para GAMES_DOMAIN. Si los juegos están en otro dominio registrable hace falta
+#                     otro certificado de origen (Cloudflare los emite por zona). Compose usa CADDY_TLS si no se define.
+#   ADMIN_PATH        /panel  (igual que en la app)
+#   ADMIN_ALLOW_IPS   IPs/CIDR separados por espacios que pueden ver el panel.
+#                     Por defecto "0.0.0.0/0 ::/0" (todo el mundo) para no dejar fuera al propietario.
+#                     Ejemplo: ADMIN_ALLOW_IPS=203.0.113.7/32 2001:db8:1234::/48
+#   ADMIN_UPLOAD_MAX  tamaño máximo del cuerpo en las rutas de subida del panel.
+#                     Por defecto 720MB ≥ MAX_BUILD_MB (200) + MAX_DOWNLOAD_MB (500) + MAX_COVER_MB (5) + margen multipart,
+#                     porque un mismo formulario puede llevar los tres archivos. Ajústalo si cambias esos límites.
+#                     OJO: Cloudflare Free/Pro corta cuerpos > 100 MB antes de llegar aquí (ver deploy/cloudflare.md).
+#
+# Validar sin arrancar:  docker compose run --rm --no-deps caddy caddy validate --config /etc/caddy/Caddyfile
+# Recargar en caliente:  docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile
+
+{
+	# API de administración de Caddy solo dentro del contenedor (necesaria para `caddy reload`).
+	admin localhost:2019
+
+	servers {
+		# Rangos de Cloudflare (https://www.cloudflare.com/ips/). Revisa de vez en cuando:
+		# deploy/firewall-cloudflare.sh descarga la lista vigente y avisa si cambia.
+		# Alternativa dinámica: módulo github.com/WeidiDeng/caddy-cloudflare-ip (requiere build con xcaddy):
+		#   trusted_proxies cloudflare { interval 12h timeout 15s }
+		trusted_proxies static 173.245.48.0/20 103.21.244.0/22 103.22.200.0/22 103.31.4.0/22 141.101.64.0/18 108.162.192.0/18 190.93.240.0/20 188.114.96.0/20 197.234.240.0/22 198.41.128.0/17 162.158.0.0/15 104.16.0.0/13 104.24.0.0/14 172.64.0.0/13 131.0.72.0/22 2400:cb00::/32 2606:4700::/32 2803:f800::/32 2405:b500::/32 2405:8100::/32 2a06:98c0::/29 2c0f:f248::/32
+		trusted_proxies_strict
+		# Solo se cree CF-Connecting-IP si la conexión viene de una IP de Cloudflare.
+		# Si alguien llega directo al origen, su IP real es la de la conexión y la cabecera se ignora.
+		client_ip_headers CF-Connecting-IP
+
+		timeouts {
+			read_header 10s   # corta slowloris
+			read_body 15m     # subidas grandes del panel; las públicas no tienen cuerpo
+			idle 2m
+			# Sin `write`: una descarga de 500 MB a un móvil lento puede tardar más de lo que cualquier
+			# valor razonable permitiría. Cloudflare limita por su lado las conexiones inactivas.
+		}
+		protocols h1 h2
+	}
+}
+
+# ---------------------------------------------------------------- fragmentos
+
+(common) {
+	# Ocultar la huella del servidor (borrar implica aplicarlo al escribir la respuesta).
+	header {
+		-Server
+		-X-Powered-By
+		-Via
+	}
+
+	# Logs de acceso en JSON a stdout (docker los rota: ver logging en docker-compose.yml).
+	# IPs truncadas (/24, /48) y cabeceras con IP o credenciales eliminadas: privacidad (RGPD).
+	log {
+		output stdout
+		format filter {
+			wrap json
+			fields {
+				request>remote_ip ip_mask 24 48
+				request>client_ip ip_mask 24 48
+				request>headers>Cf-Connecting-Ip delete
+				request>headers>X-Forwarded-For delete
+				request>headers>Cookie delete
+				request>headers>Authorization delete
+				resp_headers>Set-Cookie delete
+			}
+		}
+	}
+}
+
+# reverse_proxy hacia la app. {args[0]} = upstream, {args[1]} = espera máxima de cabeceras de respuesta.
+(to_app) {
+	reverse_proxy {args[0]} {
+		# La app confía en 1 salto (TRUST_PROXY=1): le damos SOLO la IP de cliente ya resuelta.
+		# Así express-rate-limit y los hashes de IP ven al visitante real, no a un nodo de Cloudflare.
+		header_up X-Forwarded-For {client_ip}
+		header_up X-Real-IP {client_ip}
+		header_up -Cf-Connecting-Ip
+		header_down -Server
+		header_down -X-Powered-By
+
+		transport http {
+			dial_timeout 5s
+			response_header_timeout {args[1]}
+		}
+	}
+}
+
+# ---------------------------------------------------------------- sitio principal
+
+{$SITE_DOMAIN} {
+	tls {$CADDY_TLS}
+	import common
+
+	# Compresión: Caddy solo comprime tipos de texto (HTML, CSS, JS, JSON, SVG…) y nunca vuelve
+	# a comprimir respuestas que ya traen Content-Encoding; los ZIP de descarga e imágenes pasan tal cual.
+	encode zstd gzip
+
+	# --- Panel (ADMIN_PATH) ---
+	@admin path {$ADMIN_PATH:/panel} {$ADMIN_PATH:/panel}/*
+	handle @admin {
+		# Lista blanca opcional de IPs. 404 (no 403) para no confirmar que el panel existe.
+		@admin_denied not client_ip {$ADMIN_ALLOW_IPS:0.0.0.0/0 ::/0}
+		respond @admin_denied 404
+
+		# Cuerpos grandes solo donde se suben juegos: POST {ADMIN_PATH}/juegos y {ADMIN_PATH}/juegos/:id
+		@upload path {$ADMIN_PATH:/panel}/juegos {$ADMIN_PATH:/panel}/juegos/*
+		@not_upload not path {$ADMIN_PATH:/panel}/juegos {$ADMIN_PATH:/panel}/juegos/*
+		request_body @upload {
+			max_size {$ADMIN_UPLOAD_MAX:720MB}
+		}
+		request_body @not_upload {
+			max_size 1MB
+		}
+
+		# Procesar un ZIP grande (validar y extraer) puede tardar.
+		import to_app app:3000 10m
+	}
+
+	# --- Público: solo lectura ---
+	handle {
+		@unsafe not method GET HEAD
+		respond @unsafe 405
+
+		request_body {
+			max_size 64KB
+		}
+
+		import to_app app:3000 30s
+	}
+}
+
+# ---------------------------------------------------------------- origen de juegos
+
+{$GAMES_DOMAIN} {
+	tls {$CADDY_TLS_GAMES}
+	import common
+
+	# Los juegos traen muchos binarios ya comprimidos (Unity .gz/.br/.unityweb, imágenes, audio):
+	# no gastar CPU en ellos. Los .wasm/.js/.json sin comprimir sí se comprimen.
+	@compressible not path *.gz *.br *.zst *.zip *.7z *.unityweb *.png *.jpg *.jpeg *.webp *.avif *.gif *.mp3 *.ogg *.opus *.m4a *.mp4 *.webm *.woff *.woff2
+	encode @compressible zstd gzip
+
+	@unsafe not method GET HEAD OPTIONS
+	respond @unsafe 405
+
+	request_body {
+		max_size 16KB
+	}
+
+	# Las cabeceras de caché largas y la CSP (frame-ancestors) las pone la app.
+	import to_app app:3001 30s
+}
