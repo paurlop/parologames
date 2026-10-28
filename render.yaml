@@ -61,6 +61,22 @@ services:
       - key: GAMES_ORIGIN
         value: https://parologames-juegos.onrender.com
       - key: GAMES_CONNECT_SRC
-        value: https://www.wikidata.org
+        value: https://www.wikidata.org https://blitz-kart-online.onrender.com
       - key: GAMES_IMG_SRC
         value: https://commons.wikimedia.org https://upload.wikimedia.org
+
+  # Servidor online de Blitz Kart: salas con código para jugar con amigos (WebSocket en /ws).
+  - type: web
+    name: blitz-kart-online
+    runtime: node
+    plan: free
+    rootDir: blitz-kart-server
+    buildCommand: npm ci --omit=dev
+    startCommand: node server/index.js
+    healthCheckPath: /
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "24"
+      - key: TRUST_PROXY
+        value: "1"

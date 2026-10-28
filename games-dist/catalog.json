@@ -13,5 +13,12 @@
     "description": "Un espadachín pixelado contra una torre infinita. Atraviesa ocho dimensiones, enfréntate a ocho dioses y sube todo lo que puedas.\n\nSe juega con teclado. Pulsa cualquier tecla o haz clic para empezar.\n\nTu progreso se guarda en tu navegador.",
     "zip": "espadachin-infinito.zip",
     "cover": "espadachin-infinito.png"
+  },
+  {
+    "title": "Blitz Kart",
+    "tagline": "Karts arcade en 3D: solo o online con tus amigos.",
+    "description": "Carreras de karts arcade en 3D con seis circuitos, objetos y derrapes.\n\nJuega solo contra la CPU o crea una sala online y pasa el código a tus amigos para correr juntos.\n\nSe juega con teclado o mando.",
+    "zip": "blitz-kart.zip",
+    "cover": "blitz-kart.png"
   }
 ]

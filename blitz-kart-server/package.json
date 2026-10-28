@@ -1,0 +1,10 @@
+{
+  "name": "blitz-kart-online",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Servidor online de Blitz Kart (salas con código, simulación autoritativa por WebSocket).",
+  "type": "module",
+  "scripts": { "start": "node server/index.js" },
+  "engines": { "node": ">=20" },
+  "dependencies": { "ws": "8.22.0" }
+}
