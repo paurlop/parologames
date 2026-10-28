@@ -124,7 +124,7 @@ export function loadConfig(env = process.env) {
     for (const item of raw.split(/\s+/)) {
       let u;
       try { u = new URL(item); } catch { problems.push(`${name}: «${item}» no es una URL válida`); continue; }
-      if (u.protocol !== 'https:' || u.origin !== item.replace(/\/$/, '')) problems.push(`${name}: «${item}» debe ser un origen https sin ruta`);
+      if (!['https:', 'wss:'].includes(u.protocol) || u.origin !== item.replace(/\/$/, '')) problems.push(`${name}: «${item}» debe ser un origen https o wss sin ruta`);
       else out.push(u.origin);
     }
     return out;

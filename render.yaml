@@ -61,7 +61,7 @@ services:
       - key: GAMES_ORIGIN
         value: https://parologames-juegos.onrender.com
       - key: GAMES_CONNECT_SRC
-        value: https://www.wikidata.org https://blitz-kart-online.onrender.com
+        value: https://www.wikidata.org https://blitz-kart-online.onrender.com wss://blitz-kart-online.onrender.com
       - key: GAMES_IMG_SRC
         value: https://commons.wikimedia.org https://upload.wikimedia.org
 
