@@ -33,8 +33,8 @@ export const PHYSICS = {
   trickBoost: 0.6,
   wallSpeedKeep: 0.55,     // fraction kept on a head-on wall hit (glancing hits keep more)
   kartRadius: 1.15,
-  bumpRestitution: 0.6,
-  bumpLateralMax: 12,      // m/s cap on sideways knock-back
+  bumpRestitution: 1.0,
+  bumpLateralMax: 17,      // m/s cap on sideways knock-back
   bumpDecay: 4.5,          // 1/s how fast the knock-back fades
   draft: { range: 22, minRange: 2.5, cone: 0.3, charge: 1.1, boost: 0.8, speedMul: 1.04, minSpeed: 18 }, // slipstream
   waterY: -1.5,            // falling below this means a recovery
