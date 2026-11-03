@@ -2,7 +2,8 @@
 // so the client can predict its own kart and replay inputs after a server
 // correction, while the server runs the exact same code authoritatively.
 
-import { PHYSICS as P } from './config.js';
+import { PHYSICS as P, ITEMS } from './config.js';
+const ITEMS_MAGNET_MUL = ITEMS.magnet.speedMul;
 import { queryTrack, groundAt, F_WALL_L, F_WALL_R } from './track.js';
 
 export function createKart(id, slot, stats) {
@@ -16,7 +17,7 @@ export function createKart(id, slot, stats) {
     boostT: 0, spinT: 0, shieldT: 0, cometT: 0, iceT: 0,
     respawnT: 0, safeSeg: slot.seg,
     trick: 0, offroad: 0, wrongT: 0,
-    bvx: 0, bvz: 0, draft: 0,
+    bvx: 0, bvz: 0, draft: 0, glide: 0, water: 0, magnetT: 0, pull: 0, phaseT: 0, mudT: 0,
     stats,
     prevDrift: 0,
   };
@@ -26,14 +27,14 @@ export function createKart(id, slot, stats) {
 // and client-side reconciliation).
 export const KART_FIELDS = ['x', 'y', 'z', 'heading', 'vh', 'speed', 'vy', 'grounded', 'air', 'seg',
   'drift', 'driftT', 'tier', 'hop', 'boostT', 'spinT', 'shieldT', 'cometT', 'iceT', 'respawnT', 'safeSeg',
-  'trick', 'prevDrift', 'bvx', 'bvz', 'draft'];
+  'trick', 'prevDrift', 'bvx', 'bvz', 'draft', 'glide', 'water', 'magnetT', 'pull', 'phaseT', 'mudT'];
 
 const q = {};
 const angDiff = (a, b) => { let d = a - b; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; return d; };
 
 // input: { throttle 0|1, brake 0|1, steer -1..1, drift 0|1 }
 // events: optional array; pushes {type, ...} for audio/vfx.
-export function stepKart(k, input, track, dt, events) {
+export function stepKart(k, input, track, dt, events, env) {
   const st = k.stats;
   if (k.respawnT > 0) {
     k.respawnT -= dt;
@@ -55,6 +56,9 @@ export function stepKart(k, input, track, dt, events) {
   if (k.offroad && k.boostT <= 0 && k.cometT <= 0) maxV *= P.offroadMaxMul;
   if (k.boostT > 0) maxV = P.maxSpeed * st.speed * P.boostMaxMul;
   if (k.cometT > 0) maxV = P.maxSpeed * st.speed * 1.32;
+  if (k.water) maxV *= 0.93;
+  if (k.mudT > 0 && k.boostT <= 0 && k.cometT <= 0) maxV *= 0.58; // mud bogs you down
+  if (k.magnetT > 0 && k.pull) maxV *= ITEMS_MAGNET_MUL;
   if (k.draft > 0.15 && k.boostT <= 0) maxV *= P.draft.speedMul; // in the slipstream
 
   if (k.grounded) {
@@ -117,7 +121,7 @@ export function stepKart(k, input, track, dt, events) {
   } else {
     const low = Math.min(1, sp / P.turnLowSpeed);
     const high = 1 - (1 - P.turnHighSpeedMul) * Math.min(1, sp / (P.maxSpeed * 1.1));
-    const rate = P.turnRate * st.handling * low * high * (k.grounded ? 1 : 0.35);
+    const rate = P.turnRate * st.handling * low * high * (k.grounded ? (k.water ? 0.9 : 1) : k.glide ? 0.8 : 0.35);
     k.heading -= steer * rate * dt * Math.sign(k.speed || 1);
   }
 
@@ -149,6 +153,23 @@ export function stepKart(k, input, track, dt, events) {
   let wallHit = 0;
   if ((q.flags & F_WALL_R) && q.d > limR) { wallHit = 1; }
   else if ((q.flags & F_WALL_L) && q.d < limL) { wallHit = -1; }
+  // split routes: a central divider island acts as a wall on both of its faces
+  for (const sp of track.zones.split) {
+    if (q.s < sp.from + 6 || q.s > sp.to - 6) continue;
+    const lim = sp.div + r;
+    if (Math.abs(q.d) >= lim) continue;
+    const side = q.d >= 0 ? 1 : -1, push = side * lim - q.d;
+    k.x += -q.tz * push; k.z += q.tx * push;
+    const nx = q.tz * side, nz = -q.tx * side; // normal pointing into the divider
+    const vx = Math.sin(k.vh), vz = Math.cos(k.vh), into = Math.max(0, vx * nx + vz * nz);
+    if (into > 0.05) {
+      k.speed *= 1 - (1 - P.wallSpeedKeep) * Math.min(1, into * 1.6);
+      const tvx = vx - nx * (vx * nx + vz * nz), tvz = vz - nz * (vx * nx + vz * nz);
+      if (Math.hypot(tvx, tvz) > 0.05) k.vh = Math.atan2(tvx, tvz);
+      if (into > 0.25 && events) events.push({ type: 'wall', id: k.id, power: into * Math.abs(k.speed) });
+    }
+    k.d = side * lim;
+  }
   if (wallHit) {
     const lim = wallHit > 0 ? limR : limL;
     const push = q.d - lim;
@@ -184,14 +205,29 @@ export function stepKart(k, input, track, dt, events) {
     // ramps launch
     for (const rp of track.zones.ramp) {
       let ds = q.s - rp.s; if (ds < -track.length / 2) ds += track.length;
-      if (ds >= 0 && ds < rp.len && Math.abs(k.d) < rp.w && k.speed > 6 && k.grounded) {
+      if (ds >= 0 && ds < rp.len && Math.abs(k.d - (rp.d || 0)) < rp.w && (k.speed > 6 || rp.spring) && k.grounded) {
+        if (rp.cannon) { k.grounded = 0; k.vy = rp.power; k.hop = 0; k.glide = 1; k.boostT = Math.max(k.boostT, 1.6); if (events) events.push({ type: 'ramp', id: k.id, cannon: 1 }); continue; }
+        if (rp.spring) { k.grounded = 0; k.vy = rp.power; k.hop = 0; if (events) events.push({ type: 'ramp', id: k.id, spring: 1 }); continue; }
         k.grounded = 0; k.vy = rp.power * Math.min(1.1, Math.max(0.55, k.speed / P.maxSpeed)); k.hop = 0;
+        if (rp.glide) { k.glide = 1; if (events) events.push({ type: 'glide', id: k.id }); }
         if (events) events.push({ type: 'ramp', id: k.id });
       }
     }
   }
+  // reaching a gap: launch pad fires and the glider opens automatically
+  if ((q.flags & 128) && !k.glide && k.respawnT <= 0) {
+    k.glide = 1; k.grounded = 0; k.vy = Math.max(k.vy, 5); k.hop = 0;
+    k.speed = Math.max(k.speed, 27);
+    if (events) events.push({ type: 'glide', id: k.id, gap: 1 });
+  }
+  // under the sea (water-flagged road below sea level): floaty, a little slower
+  k.water = (q.flags & 64) && k.y < P.seaLevel ? 1 : 0;
   if (!k.grounded) {
-    k.vy -= P.gravity * dt;
+    if (k.glide) {
+      // glider: slow sink, keep speed; brake = dive (faster, steeper)
+      k.vy = Math.max(k.vy - P.gravity * (input.brake ? 0.75 : 0.28) * dt, input.brake ? -14 : -4.5);
+      if (input.brake) k.speed += 5 * dt;
+    } else k.vy -= P.gravity * (k.water ? 0.45 : 1) * dt;
     k.y += k.vy * dt;
     k.air += dt;
     if (k.y <= ground && k.vy <= 0) {
@@ -201,7 +237,7 @@ export function stepKart(k, input, track, dt, events) {
         if (events) events.push({ type: 'boost', id: k.id, tier: 0, trick: 1 });
       }
       if (events && k.air > 0.25) events.push({ type: 'land', id: k.id, power: -k.vy });
-      k.vy = 0; k.air = 0; k.hop = 0; k.trick = 0;
+      k.vy = 0; k.air = 0; k.hop = 0; k.trick = 0; k.glide = 0;
     }
   }
 
@@ -210,7 +246,17 @@ export function stepKart(k, input, track, dt, events) {
 
   // boost pads
   if (k.grounded) {
+    // mud patches and conveyor belts
+    for (const m of track.zones.mud) {
+      let ds = q.s - m.s; if (ds < -track.length / 2) ds += track.length;
+      if (ds >= 0 && ds < m.len && Math.abs(k.d - m.d) < m.w) k.mudT = 0.15;
+    }
+    for (const c of track.zones.conveyor) {
+      let ds = q.s - c.s; if (ds < -track.length / 2) ds += track.length;
+      if (ds >= 0 && ds < c.len && Math.abs(k.d - c.d) < c.w) { k.bvx += -q.tz * c.push * dt; k.bvz += q.tx * c.push * dt; }
+    }
     for (const bp of track.zones.boost) {
+      if (bp.finalLap && !env?.finalLap) continue;
       let ds = q.s - bp.s; if (ds < -track.length / 2) ds += track.length;
       if (ds >= 0 && ds < bp.len && Math.abs(k.d - bp.d) < bp.w) {
         if (k.boostT < 0.9 && events) events.push({ type: 'boost', id: k.id, tier: 0, pad: 1 });
@@ -223,6 +269,9 @@ export function stepKart(k, input, track, dt, events) {
   if (k.boostT > 0) k.boostT -= dt;
   if (k.shieldT > 0) k.shieldT -= dt;
   if (k.cometT > 0) k.cometT -= dt;
+  if (k.magnetT > 0) k.magnetT -= dt;
+  if (k.phaseT > 0) k.phaseT -= dt;
+  if (k.mudT > 0) k.mudT -= dt;
   if (k.iceT > 0) k.iceT -= dt;
 
   // wrong way detection (HUD only)
@@ -231,7 +280,7 @@ export function stepKart(k, input, track, dt, events) {
 
   // safety: remember a recovery point, fall into the sea / off the world
   if (k.grounded && Math.abs(k.d) < q.hw - 1) k.safeSeg = k.seg;
-  if (k.y < P.waterY || k.y < q.y - P.fallBelowRoad || !Number.isFinite(k.x + k.z + k.y)) {
+  if ((k.y < P.waterY && k.y < q.y - 0.5) || k.y < q.y - P.fallBelowRoad || !Number.isFinite(k.x + k.z + k.y)) {
     if (Number.isFinite(k.x + k.z + k.y) && events) events.push({ type: 'fall', id: k.id, x: k.x, y: Math.max(k.y, P.waterY), z: k.z });
     k.respawnT = P.respawnTime; k.speed = 0; k.vy = 0; k.drift = 0; k.boostT = 0;
     if (!Number.isFinite(k.x + k.z + k.y)) { k.x = px; k.z = pz; k.y = py; }
@@ -250,7 +299,7 @@ export function respawn(k, track, events) {
 }
 
 export function hitKart(k, events, cause) {
-  if (k.respawnT > 0 || k.cometT > 0) return false;
+  if (k.respawnT > 0 || k.cometT > 0 || k.phaseT > 0) return false;
   if (k.shieldT > 0) {
     k.shieldT = 0;
     if (events) events.push({ type: 'shieldBreak', id: k.id });

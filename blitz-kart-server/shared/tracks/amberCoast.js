@@ -39,7 +39,11 @@ export default {
     [-172, 116, 1.2, 11.5],
     [-126, 116, 1.0, 12],
   ],
+  complex: { chicanes: [[1.0, 11.2, 90], [4.6, 12.8, 100], [21.0, 9.6, 80]], crests: [[6.5, 4.2, 60], [15.2, 3.5, 50]], narrow: [[13.8, 15.6, 7.5]] },
   zones: [
+    { type: 'obstacle', kind: 'stomper', at: 10.0, d: -3, period: 3.4, r: 2.4 },
+    { type: 'obstacle', kind: 'slider', at: 5.5, amp: 6, period: 3.4 }, { type: 'obstacle', kind: 'slider', at: 19.0, amp: 6, period: 2.8, phase: 0.5, finalLap: true },
+    { type: 'boost', at: 18.6, d: -3, len: 7, finalLap: true },
     { type: 'bridge', from: 12.35, to: 13.65 },
     { type: 'open', from: 17.7, to: 19.6, side: 'outer' },
     { type: 'sand', from: 8.6, to: 10.6, side: 'inner', width: 22 },

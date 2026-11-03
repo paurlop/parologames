@@ -48,6 +48,18 @@ export function botInput(sim, k, brain, dt) {
   // inside line on corners (left turn: c>0 → inner side is negative d)
   let lateral = -Math.sign(c) * Math.min(hw * 0.6, Math.abs(c) * hw * 30) * skill.line + brain.lane;
   lateral += Math.sin(sim.time * 0.7 + brain.wobble) * skill.noise * 6;
+  // forks: choose a route before the divider and stay in the middle of that lane
+  for (const sp of tr.zones.split) {
+    let ds = sp.from - k.s; if (ds < -tr.length / 2) ds += tr.length;
+    const inside = k.s >= sp.from - 2 && k.s <= sp.to;
+    if (inside || (ds > 0 && ds < 70)) {
+      if (!brain.fork || brain.fork.from !== sp.from) brain.fork = { from: sp.from, side: brain.rng() < 0.5 ? -1 : 1 };
+      // past the divider tip you are committed to the lane you are actually in
+      if (k.s >= sp.from + 6 && Math.abs(k.d) > 1) brain.fork.side = Math.sign(k.d);
+      const hw = tr.HW[(k.seg + 15) % n];
+      lateral = brain.fork.side * (sp.div + (hw - sp.div) / 2);
+    }
+  }
 
   // avoid hazards and karts directly ahead
   for (const h of sim.hazards) {
@@ -58,6 +70,13 @@ export function botInput(sim, k, brain, dt) {
     if (fwd < 0.6) continue;
     const side = dx * -Math.cos(k.vh) + dz * Math.sin(k.vh); // >0: hazard on the right
     if (Math.abs(side) < 3) lateral += side > 0 ? -4 : 4;
+  }
+  for (const p of sim.obstaclePoses || []) {
+    const dx = p.x - k.x, dz = p.z - k.z, dist = Math.hypot(dx, dz);
+    if (dist > 35 || !p.danger && !p.warn) continue;
+    if ((dx * Math.sin(k.vh) + dz * Math.cos(k.vh)) / (dist || 1) < 0.5) continue;
+    const side = dx * -Math.cos(k.vh) + dz * Math.sin(k.vh);
+    if (Math.abs(side) < 4.5) lateral += side > 0 ? -5 : 5;
   }
   for (const o of sim.karts) {
     if (o === k) continue;
@@ -121,8 +140,8 @@ export function botInput(sim, k, brain, dt) {
 function wantsToUse(sim, k) {
   const it = k.item;
   if (it === 'turbo' || it === 'triturbo') return Math.abs(sim.track.CURV[(k.seg + 10) % sim.track.n]) < 0.01;
-  if (it === 'shield' || it === 'comet' || it === 'seeker') return true;
-  if (it === 'mine' || it === 'frost') {
+  if (it === 'shield' || it === 'comet' || it === 'seeker' || it === 'tornado' || it === 'magnet' || it === 'phase') return true;
+  if (it === 'mine' || it === 'frost' || it === 'wall') {
     // drop when someone is close behind, or after holding it a while
     for (const o of sim.karts) {
       if (o === k) continue;

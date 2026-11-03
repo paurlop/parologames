@@ -16,8 +16,8 @@
   },
   {
     "title": "Blitz Kart",
-    "tagline": "Karts arcade en 3D: solo o online con tus amigos.",
-    "description": "Carreras de karts arcade en 3D con seis circuitos, objetos y derrapes.\n\nJuega solo contra la CPU o crea una sala online y pasa el código a tus amigos para correr juntos.\n\nSe juega con teclado o mando.",
+    "tagline": "Karts arcade en 3D: 18 circuitos, copas y online con tus amigos.",
+    "description": "Carreras de karts arcade en 3D con 18 circuitos: ciudad de neón, volcán, espacio, una pista en el cielo que se cruza en ala delta, un tramo bajo el mar, una mina subterránea, un castillo encantado y la Autopista Arcoíris.\n\nOcho pilotos con su propio kart, 12 objetos, túneles, bifurcaciones, cañones y circuitos que cambian en la última vuelta. Juega copas de 4 carreras con podio, contrarreloj contra tu fantasma, o crea una sala online y pasa el código a tus amigos.\n\nSe juega con teclado o mando. Tu progreso se guarda en tu navegador.",
     "zip": "blitz-kart.zip",
     "cover": "blitz-kart.png"
   }

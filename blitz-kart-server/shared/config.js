@@ -33,11 +33,12 @@ export const PHYSICS = {
   trickBoost: 0.6,
   wallSpeedKeep: 0.55,     // fraction kept on a head-on wall hit (glancing hits keep more)
   kartRadius: 1.15,
-  bumpRestitution: 1.0,
-  bumpLateralMax: 17,      // m/s cap on sideways knock-back
+  bumpRestitution: 0.6,
+  bumpLateralMax: 12,      // m/s cap on sideways knock-back
   bumpDecay: 4.5,          // 1/s how fast the knock-back fades
   draft: { range: 22, minRange: 2.5, cone: 0.3, charge: 1.1, boost: 0.8, speedMul: 1.04, minSpeed: 18 }, // slipstream
-  waterY: -1.5,            // falling below this means a recovery
+  waterY: -1.5,
+  seaLevel: -0.6,          // underwater road sections are below this            // falling below this means a recovery
   fallBelowRoad: 7,        // or this far below the road
   respawnTime: 1.6,
   spinTime: 1.15,
@@ -88,6 +89,10 @@ export const ITEMS = {
   mine: { life: 30, radius: 1.7, drop: 3.4 },
   frost: { life: 9, radius: 7, drop: 5 },
   comet: { time: 3.6, speedMul: 1.32, cooldown: 35 },
+  tornado: { speed: 36, life: 7, radius: 2.6 },
+  wall: { life: 14, drop: 4.5, radius: 1.7, spacing: 3.6, hits: 3 },
+  magnet: { time: 4.5, speedMul: 1.12, range: 70 },
+  phase: { time: 3.5 },
 };
 
 // Original item set. `kind` is what the HUD and audio key on.
@@ -100,14 +105,18 @@ export const ITEM_DEFS = {
   mine: { name: 'Goo Mine', desc: 'Drop it behind you.' },
   frost: { name: 'Frost Field', desc: 'Freezes the road behind you — karts slide.' },
   comet: { name: 'Comet Drive', desc: 'Autopilot rush, knocks karts aside.' },
+  tornado: { name: 'Ciclón', desc: 'Un tornado recorre la pista hacia delante y hace trompear a quien toca.' },
+  wall: { name: 'Muro Burbuja', desc: 'Una barrera de burbujas detrás de ti que rebota a quien choque.' },
+  magnet: { name: 'Imán Turbo', desc: 'Te arrastra hacia el kart de delante: más velocidad mientras haya alguien cerca.' },
+  phase: { name: 'Fase Fantasma', desc: 'Unos segundos intangible: atraviesas karts y nada te afecta.' },
 };
 
 // Weights by race position bucket. The leader never gets speed items;
 // the back of the pack gets the catch-up tools. Tuned by headless bot races (tests/).
 export const ITEM_ODDS = {
-  front: { orb: 30, mine: 30, shield: 25, frost: 15 },
-  mid: { turbo: 22, orb: 20, mine: 14, shield: 12, seeker: 12, frost: 12, triturbo: 8 },
-  back: { triturbo: 24, turbo: 18, seeker: 20, comet: 16, shield: 12, orb: 10 },
+  front: { orb: 26, mine: 24, shield: 20, frost: 12, wall: 12, phase: 6 },
+  mid: { turbo: 18, orb: 16, mine: 10, shield: 10, seeker: 10, frost: 8, triturbo: 6, tornado: 9, magnet: 8, wall: 6, phase: 6 },
+  back: { triturbo: 20, turbo: 14, seeker: 16, comet: 14, shield: 8, orb: 8, magnet: 14, tornado: 10, phase: 6 },
 };
 
 export const BOT_SKILL = {

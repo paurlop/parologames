@@ -57,8 +57,8 @@ export const ERR = {
 };
 
 export const PHASES = ['countdown', 'racing', 'finished'];
-export const PROJECTILE_TYPES = ['orb', 'seeker'];
-export const HAZARD_TYPES = ['mine', 'frost'];
+export const PROJECTILE_TYPES = ['orb', 'seeker', 'tornado'];
+export const HAZARD_TYPES = ['mine', 'frost', 'wall'];
 export const BOT_LEVELS = ['easy', 'normal', 'hard'];
 
 export const ROOM_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O/1/I

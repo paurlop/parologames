@@ -3,7 +3,7 @@
 // only reads from it (karts, projectiles, hazards, boxes, phase, time, events).
 
 import { DT, RACE, ITEMS, ITEM_ODDS, PHYSICS, kartStats } from './config.js';
-import { gridSlot, queryTrack } from './track.js';
+import { gridSlot, queryTrack, obstaclePose } from './track.js';
 import { createKart, stepKart, hitKart } from './kart.js';
 
 // Split a collision velocity change into forward speed (damped) and sideways knock-back.
@@ -19,7 +19,7 @@ function applyBump(k, dvx, dvz) {
 }
 import { createBrain, botInput, steerAlongTrack } from './bot.js';
 
-export const ITEM_KEYS = ['turbo', 'triturbo', 'shield', 'orb', 'seeker', 'mine', 'frost', 'comet'];
+export const ITEM_KEYS = ['turbo', 'triturbo', 'shield', 'orb', 'seeker', 'mine', 'frost', 'comet', 'tornado', 'wall', 'magnet', 'phase'];
 
 export function mulberry32(seed) {
   let a = seed >>> 0;
@@ -57,6 +57,8 @@ export class RaceSim {
     this.nextEntityId = 1;
     this.projectiles = [];
     this.hazards = [];
+    this.env = { finalLap: false };
+    this.obstaclePoses = [];
     this.C = RACE.checkpoints;
     this.karts = entrants.map((e, i) => {
       const k = createKart(e.id, gridSlot(track, i), kartStats(e.body, e.wheels));
@@ -130,12 +132,19 @@ export class RaceSim {
       } else {
         input = get(k.id);
       }
-      stepKart(k, input, this.track, dt, this.events);
+      stepKart(k, input, this.track, dt, this.events, this.env);
       this.updateItemsFor(k, input, dt);
       this.updateLap(k);
     }
     this.collideKarts();
     this.updateDraft(dt);
+    this.updateObstacles();
+    this.updateMagnets();
+    // the circuit changes once the leader starts the final lap
+    if (!this.env.finalLap && this.karts.some((k) => k.lap >= this.laps && !k.finished)) {
+      this.env.finalLap = true;
+      this.events.push({ type: 'finalLap' });
+    }
     this.updateProjectiles(dt);
     this.updateHazards(dt);
     this.updateBoxes(dt);
@@ -191,7 +200,7 @@ export class RaceSim {
       if (a.respawnT > 0) continue;
       for (let j = i + 1; j < ks.length; j++) {
         const b = ks[j];
-        if (b.respawnT > 0) continue;
+        if (b.respawnT > 0 || a.phaseT > 0 || b.phaseT > 0) continue;
         const dx = b.x - a.x, dz = b.z - a.z, dy = b.y - a.y;
         const d2 = dx * dx + dz * dz;
         if (d2 >= R * R || Math.abs(dy) > 1.6) continue;
@@ -211,6 +220,41 @@ export class RaceSim {
         applyBump(a, -nx * J / ma, -nz * J / ma);
         applyBump(b, nx * J / mb, nz * J / mb);
         if (closing > 1.5) this.events.push({ type: 'bump', id: a.id, other: b.id, power: closing, x: (a.x + b.x) / 2, y: a.y + 0.5, z: (a.z + b.z) / 2 });
+      }
+    }
+  }
+
+  updateMagnets() {
+    for (const k of this.karts) {
+      k.pull = 0;
+      if (k.magnetT <= 0) continue;
+      for (const o of this.karts) {
+        if (o === k || o.respawnT > 0) continue;
+        const dx = o.x - k.x, dz = o.z - k.z, d = Math.hypot(dx, dz);
+        if (d < ITEMS.magnet.range && (dx * Math.sin(k.vh) + dz * Math.cos(k.vh)) / (d || 1) > 0.5) { k.pull = 1; break; }
+      }
+    }
+  }
+
+  updateObstacles() {
+    const R = PHYSICS.kartRadius;
+    this.obstaclePoses.length = 0;
+    for (const o of this.track.zones.obstacles) {
+      if (o.finalLap && !this.env.finalLap) continue;
+      const p = obstaclePose(this.track, o, this.time);
+      this.obstaclePoses.push(p);
+      if (!p.danger) continue;
+      for (const k of this.karts) {
+        if (k.respawnT > 0 || !k.grounded || k.phaseT > 0) continue;
+        const dx = k.x - p.x, dz = k.z - p.z, d = Math.hypot(dx, dz), min = o.r + R;
+        if (d >= min) continue;
+        if (o.kind === 'stomper') { hitKart(k, this.events, 'stomper'); continue; }
+        // slider: shove the kart out and away
+        const nx = dx / (d || 1), nz = dz / (d || 1);
+        k.x = p.x + nx * min; k.z = p.z + nz * min;
+        applyBump(k, nx * 9, nz * 9);
+        k.speed *= 0.75;
+        this.events.push({ type: 'bump', id: k.id, power: 8, x: p.x, y: p.y + 1, z: p.z });
       }
     }
   }
@@ -322,6 +366,20 @@ export class RaceSim {
           r: ITEMS.frost.radius, life: ITEMS.frost.life,
         });
         break;
+      case 'tornado': {
+        queryTrack(this.track, k.x, k.y, k.z, k.seg, q);
+        this.projectiles.push({ id: this.nextEntityId++, type: 'tornado', owner: k.id, x: k.x, y: k.y, z: k.z, vh: k.vh, speed: ITEMS.tornado.speed,
+          life: ITEMS.tornado.life, age: 0, seg: k.seg, s: q.s + 4, d: q.d, bounces: 0, target: null, hit: [] });
+        break;
+      }
+      case 'wall': {
+        queryTrack(this.track, k.x, k.y, k.z, k.seg, q);
+        this.hazards.push({ id: this.nextEntityId++, type: 'wall', owner: k.id, age: 0, x: k.x - fx * ITEMS.wall.drop, z: k.z - fz * ITEMS.wall.drop, y: k.y,
+          r: ITEMS.wall.radius, life: ITEMS.wall.life, tx: q.tx, tz: q.tz, hits: ITEMS.wall.hits });
+        break;
+      }
+      case 'magnet': k.magnetT = ITEMS.magnet.time; break;
+      case 'phase': k.phaseT = ITEMS.phase.time; break;
       case 'comet':
         k.cometT = ITEMS.comet.time;
         k.drift = 0; k.driftT = 0; k.tier = 0;
@@ -358,6 +416,18 @@ export class RaceSim {
     for (const p of this.projectiles) {
       p.age += dt; p.life -= dt;
       let alive = p.life > 0;
+      if (p.type === 'tornado') {
+        p.s = (p.s + p.speed * dt) % tr.length;
+        const ti = tr.sampleAtS(p.s);
+        p.seg = ti; p.vh = Math.atan2(tr.TX[ti], tr.TZ[ti]);
+        p.x = tr.X[ti] - tr.TZ[ti] * p.d; p.z = tr.Z[ti] + tr.TX[ti] * p.d; p.y = tr.Y[ti] + 1;
+        for (const k of this.karts) {
+          if (k.respawnT > 0 || k.id === p.owner || p.hit.includes(k.id)) continue;
+          if ((k.x - p.x) ** 2 + (k.z - p.z) ** 2 < (ITEMS.tornado.radius + 1) ** 2) { p.hit.push(k.id); hitKart(k, this.events, 'tornado'); }
+        }
+        if (p.life > 0) keep.push(p); else this.events.push({ type: 'fizzle', x: p.x, y: p.y, z: p.z });
+        continue;
+      }
       if (p.type === 'seeker') {
         const t = p.target != null ? this.kartById(p.target) : null;
         let aim;
@@ -440,6 +510,20 @@ export class RaceSim {
             this.events.push({ type: 'explode', x: h.x, y: h.y + 0.5, z: h.z, kind: 'mine' });
             alive = false; break;
           }
+        } else if (h.type === 'wall') {
+          if (k.phaseT > 0 || k.cometT > 0 || (h.age < 0.6 && k.id === h.owner)) continue;
+          for (const o of [-1, 0, 1]) {
+            const bx = h.x - h.tz * o * ITEMS.wall.spacing, bz = h.z + h.tx * o * ITEMS.wall.spacing;
+            const ex = k.x - bx, ez = k.z - bz, ed = Math.hypot(ex, ez), min = h.r + PHYSICS.kartRadius;
+            if (ed >= min) continue;
+            const nx = ex / (ed || 1), nz = ez / (ed || 1);
+            k.x = bx + nx * min; k.z = bz + nz * min;
+            applyBump(k, nx * 10, nz * 10); k.speed *= 0.4;
+            this.events.push({ type: 'bump', id: k.id, power: 9, x: bx, y: h.y + 1, z: bz });
+            if (--h.hits <= 0) alive = false;
+            break;
+          }
+          if (!alive) { this.events.push({ type: 'explode', x: h.x, y: h.y + 1, z: h.z, kind: 'wall' }); break; }
         } else if (h.type === 'frost' && d2 < h.r * h.r && k.grounded && k.cometT <= 0) {
           if (k.iceT <= 0) this.events.push({ type: 'ice', id: k.id });
           k.iceT = 0.35;

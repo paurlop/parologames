@@ -7,7 +7,12 @@ export default {
     [160, 120, 9, 11], [90, 100, 7, 10.5], [50, 140, 6, 10.5], [-20, 160, 5, 11], [-100, 130, 4, 11],
     [-150, 60, 3, 11], [-140, -20, 2, 11.5], [-80, -60, 2, 11.5],
   ],
+  complex: { chicanes: [[1.2, 11.2, 80], [7.6, 9.6, 80]], crests: [[3.0, 3.5, 50], [10.8, 3.5, 40]], narrow: [[5.4, 7.0, 7.5]] },
   zones: [
+    { type: 'mud', at: 2.2, len: 26, d: -4, w: 5 }, { type: 'mud', at: 8.9, len: 22, d: 3, w: 5 },
+    { type: 'obstacle', kind: 'slider', at: 11.6, amp: 6, period: 3.0 },
+    { type: 'obstacle', kind: 'stomper', at: 4.6, d: 3, period: 3.4, r: 2.4 }, { type: 'obstacle', kind: 'stomper', at: 9.6, d: -3, period: 3, r: 2.4, finalLap: true },
+    { type: 'boost', at: 7.6, d: 3, len: 7, finalLap: true },
     { type: 'sand', from: 5.4, to: 7.0, side: 'inner', width: 14 },
     { type: 'open', from: 10.3, to: 11.2, side: 'outer' },
     { type: 'ramp', at: 8.5, len: 6, power: 10, w: 10 },

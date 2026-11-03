@@ -7,7 +7,7 @@
 
 export const STEP = 2; // metres between samples
 
-export const F_WALL_R = 1, F_WALL_L = 2, F_BRIDGE = 4, F_OPEN_R = 8, F_OPEN_L = 16, F_ICE = 32;
+export const F_WALL_R = 1, F_WALL_L = 2, F_BRIDGE = 4, F_OPEN_R = 8, F_OPEN_L = 16, F_ICE = 32, F_WATER = 64, F_GAP = 128, F_TUNNEL = 256;
 
 function centripetal(p0, p1, p2, p3, t, out) {
   const dist = (a, b) => Math.pow(Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]) || 1e-4, 0.5);
@@ -62,6 +62,35 @@ export function buildTrack(def) {
     return a + (b - a) * f;
   };
 
+  const C = def.complex || {};
+  if (C.chicanes || C.crests || C.narrow) {
+    const tx0 = new Float32Array(n), tz0 = new Float32Array(n);
+    for (let i = 0; i < n; i++) {
+      const a = (i - 1 + n) % n, b = (i + 1) % n, dx = X[b] - X[a], dz = Z[b] - Z[a], l = Math.hypot(dx, dz) || 1;
+      tx0[i] = dx / l; tz0[i] = dz / l;
+    }
+    const span = (at, len, fn) => {
+      const s0 = cpToS(at) - len / 2;
+      for (let k = 0; k <= len / step; k++) {
+        const i = ((Math.round(s0 / step) + k) % n + n) % n, u = k / (len / step);
+        fn(i, u);
+      }
+    };
+    for (const [at, amp, len] of C.chicanes || []) span(at, len, (i, u) => {
+      const off = amp * Math.sin(2 * Math.PI * u) * Math.sin(Math.PI * u) ** 2;
+      X[i] += -tz0[i] * off; Z[i] += tx0[i] * off;
+    });
+    for (const [at, h, len] of C.crests || []) span(at, len, (i, u) => { Y[i] += h * Math.sin(Math.PI * u) ** 2; });
+    for (const [from, to, hw] of C.narrow || []) {
+      const a = cpToS(from), b = cpToS(to);
+      for (let i = 0; i < n; i++) {
+        const s = i * step; if (s < a || s > b) continue;
+        const e = Math.min(1, (s - a) / 20, (b - s) / 20); // ease in/out over 20 m
+        HW[i] = HW[i] + (Math.min(HW[i], hw) - HW[i]) * e;
+      }
+    }
+  }
+
   const TX = new Float32Array(n), TZ = new Float32Array(n), GRADE = new Float32Array(n), CURV = new Float32Array(n);
   for (let i = 0; i < n; i++) {
     const a = (i - 1 + n) % n, b = (i + 1) % n;
@@ -83,7 +112,7 @@ export function buildTrack(def) {
   for (let i = 0; i < n; i++) { cx += X[i]; cz += Z[i]; }
   cx /= n; cz /= n;
 
-  const FLAGS = new Uint8Array(n).fill(F_WALL_L | F_WALL_R);
+  const FLAGS = new Uint16Array(n).fill(F_WALL_L | F_WALL_R);
   const SHL = new Float32Array(n).fill(def.shoulder ?? 5);
   const SHR = new Float32Array(n).fill(def.shoulder ?? 5);
   const inRange = (i, from, to) => {
@@ -103,9 +132,9 @@ export function buildTrack(def) {
     return side === 'outer' ? outer : outer === 'R' ? 'L' : 'R';
   };
 
-  const zones = { boost: [], ramp: [], items: [], open: [], bridge: [], sand: [], ice: [] };
+  const zones = { boost: [], ramp: [], items: [], open: [], bridge: [], sand: [], ice: [], water: [], gap: [], obstacles: [], mud: [], conveyor: [], split: [], tunnel: [] };
   for (const z of def.zones || []) {
-    if (z.type === 'open' || z.type === 'sand' || z.type === 'bridge' || z.type === 'ice') {
+    if (z.type === 'open' || z.type === 'sand' || z.type === 'bridge' || z.type === 'ice' || z.type === 'water' || z.type === 'gap' || z.type === 'tunnel') {
       // Resolve side once at the middle of the range so it does not flip mid-zone.
       const mid = Math.round(((cpToS(z.from) + (z.to < z.from ? cpToS(z.to) + length : cpToS(z.to))) / 2 % length) / step) % n;
       const side = z.side ? sideAt(mid, z.side) : null;
@@ -113,6 +142,9 @@ export function buildTrack(def) {
         if (!inRange(i, z.from, z.to)) continue;
         if (z.type === 'bridge') FLAGS[i] |= F_BRIDGE;
         if (z.type === 'ice') FLAGS[i] |= F_ICE;
+        if (z.type === 'water') FLAGS[i] |= F_WATER;
+        if (z.type === 'tunnel') FLAGS[i] |= F_TUNNEL;
+        if (z.type === 'gap') { FLAGS[i] |= F_GAP | F_OPEN_L | F_OPEN_R; FLAGS[i] &= ~(F_WALL_L | F_WALL_R); }
         if (z.type === 'open') {
           if (side === 'R') { FLAGS[i] &= ~F_WALL_R; FLAGS[i] |= F_OPEN_R; }
           else { FLAGS[i] &= ~F_WALL_L; FLAGS[i] |= F_OPEN_L; }
@@ -123,9 +155,27 @@ export function buildTrack(def) {
       }
       zones[z.type].push({ from: cpToS(z.from), to: cpToS(z.to), side });
     } else if (z.type === 'boost') {
-      zones.boost.push({ s: cpToS(z.at), d: z.d ?? 0, len: z.len ?? 7, w: z.w ?? 4.5 });
+      zones.boost.push({ s: cpToS(z.at), d: z.d ?? 0, len: z.len ?? 7, w: z.w ?? 4.5, finalLap: !!z.finalLap });
     } else if (z.type === 'ramp') {
-      zones.ramp.push({ s: cpToS(z.at), len: z.len ?? 6, power: z.power ?? 11, w: z.w ?? 9 });
+      zones.ramp.push({ s: cpToS(z.at), len: z.len ?? 6, power: z.power ?? 11, w: z.w ?? 9, glide: !!z.glide });
+    } else if (z.type === 'split') {
+      // two routes around a central island: the road widens and a divider wall splits it
+      const a = cpToS(z.from), b = cpToS(z.to), W = z.width ?? 21;
+      zones.split.push({ from: a, to: b, div: z.divider ?? 3.5 });
+      for (let i = 0; i < n; i++) {
+        const s = i * step; if (s < a - 30 || s > b + 30) continue;
+        const e = Math.min(1, (s - (a - 30)) / 30, ((b + 30) - s) / 30);
+        HW[i] = HW[i] + (Math.max(HW[i], W) - HW[i]) * e;
+      }
+    } else if (z.type === 'cannon') {
+      zones.ramp.push({ s: cpToS(z.at), len: z.len ?? 5, power: z.power ?? 15, w: z.w ?? 10, cannon: true, glide: true });
+    } else if (z.type === 'spring') {
+      zones.ramp.push({ s: cpToS(z.at), len: z.len ?? 4, power: z.power ?? 15, w: z.w ?? 6, d: z.d ?? 0, spring: true });
+    } else if (z.type === 'mud' || z.type === 'conveyor') {
+      zones[z.type].push({ s: cpToS(z.at), len: z.len ?? 30, d: z.d ?? 0, w: z.w ?? 6, push: z.push ?? 9 });
+    } else if (z.type === 'obstacle') {
+      // moving obstacle anchored at a track sample; pose is a pure function of race time
+      zones.obstacles.push({ kind: z.kind || 'slider', s: cpToS(z.at), amp: z.amp ?? 7, period: z.period ?? 3, phase: z.phase ?? 0, r: z.r ?? 1.8, d: z.d ?? 0, finalLap: !!z.finalLap });
     } else if (z.type === 'items') {
       zones.items.push({ s: cpToS(z.at), count: z.count ?? 5 });
     }
@@ -194,6 +244,7 @@ export function queryTrack(track, x, y, z, seg, out = _q, window = 32) {
 
 // Ground height at a lateral offset (open edges fall away towards the sea).
 export function groundAt(q, d) {
+  if (q.flags & 128) return -1e9; // gap: no road under you
   if (d > q.edgeR && (q.flags & 8)) return q.y - (d - q.edgeR) * 1.4;
   if (d < -q.edgeL && (q.flags & 16)) return q.y - (-q.edgeL - d) * 1.4;
   return q.y;
@@ -214,4 +265,21 @@ export function gridSlot(track, index) {
     heading: Math.atan2(tx, tz),
     seg: i,
   };
+}
+
+// Moving obstacles: deterministic from race time, so server and clients agree.
+// slider  = block sweeping across the road; stomper = pillar that slams down (only
+// dangerous while low; its ground ring warns before the drop).
+export function obstaclePose(track, o, time, out = {}) {
+  const i = track.sampleAtS(o.s);
+  const ph = (time / o.period + o.phase) % 1;
+  let d = o.d, h = 0, danger = true;
+  if (o.kind !== 'stomper') d = o.d + Math.sin(ph * Math.PI * 2) * o.amp; // slider / roller
+  else { // stomper: up 60% of the cycle, falls fast, rests down, rises
+    h = ph < 0.6 ? 6 : ph < 0.66 ? 6 * (1 - (ph - 0.6) / 0.06) : ph < 0.86 ? 0 : 6 * ((ph - 0.86) / 0.14);
+    danger = h < 1.2;
+  }
+  out.x = track.X[i] - track.TZ[i] * d; out.z = track.Z[i] + track.TX[i] * d; out.y = track.Y[i];
+  out.h = h; out.danger = danger; out.warn = o.kind === 'stomper' && ph > 0.45 && ph < 0.66; out.heading = Math.atan2(track.TX[i], track.TZ[i]);
+  return out;
 }
