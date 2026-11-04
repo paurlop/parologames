@@ -1,5 +1,12 @@
 [
   {
+    "title": "PixelRogue",
+    "tagline": "Un roguelike de mazmorras en pixel art: baja, lucha y no mueras.",
+    "description": "Mazmorras que cambian en cada partida: cinco mundos, cinco guardianes con segunda fase, reliquias con sinergias, zonas secretas, trampas, mímicos y eventos.\n\nJuegas como El Elegido, un guerrero de minerales con puños de cristal: combo mineral, golpe ascendente, puño impulso y golpe terrestre. Entre partidas mejoras tu campamento con almas y completas el compendio.\n\nSe juega con teclado o mando (WASD, Espacio, Shift, X, Q y E). Tu progreso se guarda en tu navegador.",
+    "zip": "pixelrogue.zip",
+    "cover": "pixelrogue.png"
+  },
+  {
     "title": "Palco de Honor",
     "tagline": "Preside un club entre 700 equipos reales y llévalo hasta la élite.",
     "description": "Once países y 700 clubes reales, de primera a cuarta categoría. Preside uno o funda el tuyo en un solar y llévalo hasta la élite.\n\nGestiona fichajes, cantera, estadio y finanzas temporada a temporada. Incluye un estadio en 3D que se genera para tu club.\n\nLa partida se guarda en tu navegador.",
