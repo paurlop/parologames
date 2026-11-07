@@ -2,7 +2,7 @@
   {
     "title": "PixelRogue",
     "tagline": "Un roguelike de mazmorras en pixel art: baja, lucha y no mueras.",
-    "description": "Mazmorras que cambian en cada partida: cinco mundos, cinco guardianes con segunda fase, reliquias con sinergias, zonas secretas, trampas, mímicos y eventos.\n\nJuegas como El Elegido, un guerrero de minerales con puños de cristal: combo mineral, golpe ascendente, puño impulso y golpe terrestre. Entre partidas mejoras tu campamento con almas y completas el compendio.\n\nSe juega con teclado o mando (WASD, Espacio, Shift, X, Q y E). Tu progreso se guarda en tu navegador.",
+    "description": "Un mapa de mazmorras sin fin que cambia en cada partida: seis mundos, guardianes con segunda fase, minijefes, asentamientos con gente que te pide ayuda, salas secretas, retos élite y pactos con un demonio.\n\nJuegas como El Elegido, un guerrero de minerales con puños de cristal. Al subir de nivel eliges entre tres mejoras de fuego, hielo, veneno, sangre, sombra o bombas: junta tres de la misma familia y cambia tu forma de luchar. Tu arma evoluciona por una de dos ramas. Si te entretienes demasiado en una planta, el Cazador viene a por ti.\n\nSe juega con teclado o mando (WASD, Espacio, Shift, X, Q y E). Tu progreso se guarda en tu navegador.",
     "zip": "pixelrogue.zip",
     "cover": "pixelrogue.png"
   },
