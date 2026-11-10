@@ -33,3 +33,6 @@ Dockerfile
 .dockerignore
 docker-compose*.yml
 compose*.yml
+
+# Código del lanzador de escritorio (el ZIP ya va en games-dist)
+desktop/

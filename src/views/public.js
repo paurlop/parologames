@@ -147,7 +147,7 @@ function featureSlot(game) {
     ${game.tagline ? html`<p class="feature-tag">${game.tagline}</p>` : ''}
     <p class="feature-actions">
       <a class="btn btn-action btn-lg" href="${href}">${icon('play')}Jugar ahora</a>
-      ${game.hasDownload || game.webSize ? html`<a class="textlink" href="${href}/descargar" download>${icon('download')}Descargar</a>` : ''}
+      ${game.hasDownload || game.webSize ? html`<a class="textlink" href="${href}/descargar" download>${icon('download')}${game.hasSeparateDownload ? 'Descargar versión de escritorio' : 'Descargar'}</a>` : ''}
     </p>
   </div>
 </section>`;
@@ -197,7 +197,7 @@ export function renderGame({ game, playUrl, assetVersion, csp } = {}) {
     <div class="player-bar">
       <button class="btn" type="button" data-fullscreen hidden>${icon('fullscreen')}Pantalla completa</button>
       <span class="player-status" role="status" aria-live="polite" data-status></span>
-      <a class="btn btn-action" href="${dl}" download>${icon('download')}Descargar${size ? html` <span class="btn-meta">${size}</span>` : ''}</a>
+      <a class="btn btn-action" href="${dl}" download>${icon('download')}${game.hasSeparateDownload ? 'Descargar versión de escritorio' : 'Descargar'}${size ? html` <span class="btn-meta">${size}</span>` : ''}</a>
     </div>
   </section>
 

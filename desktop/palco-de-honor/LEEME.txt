@@ -1,0 +1,16 @@
+PALCO DE HONOR - versión para Windows
+
+Cómo jugar
+1. Descomprime esta carpeta donde quieras (por ejemplo, en el Escritorio o en Documentos).
+2. Abre PalcoDeHonor.exe.
+
+No necesita instalación. Funciona en Windows 10 y 11 (64 bits) con Microsoft Edge WebView2,
+que ya viene con Windows 11 y con Windows 10 actualizado. Si tu equipo no lo tiene, el juego se
+abrirá en tu navegador y te avisará; puedes instalar WebView2 Runtime desde la web de Microsoft.
+
+Tus partidas se guardan en %APPDATA%\PalcoDeHonor. Si borras esa carpeta, se borran las partidas.
+
+Al ser un programa nuevo sin firma digital, Windows SmartScreen puede mostrar el aviso
+"Windows protegió su PC". Pulsa "Más información" y luego "Ejecutar de todas formas".
+
+parologames

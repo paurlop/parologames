@@ -63,6 +63,18 @@ La contraseña y la clave 2FA **no** van en `.env`: `npm run setup-admin` las gu
 3. Opcional: una **descarga aparte** en ZIP (por ejemplo, la versión de escritorio). Si no la subes, la gente descarga la versión web.
 4. Publicado u oculto, y si quieres destacarlo en la portada.
 
+## Descarga aparte (versión de escritorio)
+
+En `games-dist/catalog.json`, un juego puede llevar `"download": "<archivo>.zip"`: ese ZIP se ofrece en el botón **Descargar versión de escritorio** en lugar del ZIP de la versión web.
+
+Palco de Honor tiene versión para Windows (10 y 11): un `.exe` sin instalación que incrusta el juego y lo muestra con WebView2 (el motor Edge de Windows). Para regenerarla después de cambiar `games-dist/palco-de-honor.zip`:
+
+```bash
+desktop/palco-de-honor/build.sh
+```
+
+Necesita Go 1.24 o superior, Python 3 y `zip`/`unzip`. Escribe `games-dist/palco-de-honor-windows.zip`.
+
 ## Pruebas
 
 ```bash

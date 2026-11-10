@@ -9,10 +9,11 @@
   {
     "title": "Palco de Honor",
     "tagline": "Preside un club entre 700 equipos reales y llévalo hasta la élite.",
-    "description": "Once países y 700 clubes reales, de primera a cuarta categoría. Preside uno o funda el tuyo en un solar y llévalo hasta la élite.\n\nGestiona fichajes, cantera, estadio y finanzas temporada a temporada. Incluye un estadio en 3D que se genera para tu club.\n\nLa partida se guarda en tu navegador.",
+    "description": "Once países y 700 clubes reales, de primera a cuarta categoría. Preside uno o funda el tuyo en un solar y llévalo hasta la élite.\n\nGestiona fichajes, cantera, estadio y finanzas temporada a temporada. Incluye un estadio en 3D que se genera para tu club.\n\nLa partida se guarda en tu navegador.\n\nDescarga la versión para Windows (10 y 11): un .exe que no necesita instalación y guarda tus partidas en tu equipo.",
     "zip": "palco-de-honor.zip",
     "cover": "palco-de-honor.png",
-    "featured": true
+    "featured": true,
+    "download": "palco-de-honor-windows.zip"
   },
   {
     "title": "Espadachín Infinito",

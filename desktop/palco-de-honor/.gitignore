@@ -1,0 +1,5 @@
+game/
+pkg/
+*.syso
+*.exe
+serve-linux

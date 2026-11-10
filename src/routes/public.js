@@ -44,10 +44,12 @@ export function publicRouter(ctx, limiters) {
     try { stat = await fs.promises.stat(found.downloadPath); } catch { return next(httpError(404)); }
     if (!stat.isFile()) return next(httpError(404));
     const slug = found.game.slug;
+    // La descarga aparte suele ser la versión de escritorio: se nota en el nombre del archivo.
+    const name = found.game.hasSeparateDownload ? `${slug}-escritorio` : slug;
     res.set({
       'Content-Type': 'application/zip',
       'Content-Length': String(stat.size),
-      'Content-Disposition': `attachment; filename="${slug}.zip"; filename*=UTF-8''${encodeURIComponent(slug)}.zip`,
+      'Content-Disposition': `attachment; filename="${name}.zip"; filename*=UTF-8''${encodeURIComponent(name)}.zip`,
       'X-Content-Type-Options': 'nosniff',
       'Cache-Control': 'public, max-age=300',
       'Last-Modified': stat.mtime.toUTCString(),

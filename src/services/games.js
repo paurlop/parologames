@@ -302,11 +302,11 @@ export function createGameService({ db, config, logger }) {
     /**
      * Inserta un juego cuyos archivos ya están en su sitio (seed-demo).
      */
-    insertPrepared({ id, title, tagline, description, coverFile, buildDir, webZipFile, webZipSize, webSize, status = 'published', featured = false, createdAt }) {
+    insertPrepared({ id, title, tagline, description, coverFile, buildDir, downloadFile = null, downloadSize = null, webZipFile, webZipSize, webSize, status = 'published', featured = false, createdAt }) {
       const now = createdAt ?? Date.now();
       transaction(db, () => {
         if (featured) st.unfeatureOthers.run(id);
-        st.insert.run(id, uniqueSlug(title), title, tagline, description, coverFile, buildDir, null, null, webZipFile, webZipSize, webSize, status, featured ? 1 : 0, now, now);
+        st.insert.run(id, uniqueSlug(title), title, tagline, description, coverFile, buildDir, downloadFile, downloadSize, webZipFile, webZipSize, webSize, status, featured ? 1 : 0, now, now);
       });
       cache.clear();
     },

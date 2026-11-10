@@ -47,9 +47,19 @@ async function main() {
 
       const webZipFile = `${id}${'0'.repeat(16)}.zip`;
       const { size: webZipSize } = await writeZipFromDir(buildDir, path.join(paths.downloads, webZipFile));
+
+      // Descarga aparte (por ejemplo, la versión de escritorio): un ZIP de games-dist que se ofrece en lugar del de la versión web.
+      let downloadFile = null, downloadSize = null;
+      if (g.download) {
+        const buf = fs.readFileSync(file(g.download));
+        if (buf.length < 4 || buf.readUInt32LE(0) !== 0x04034b50) throw new Error(`${g.download}: la descarga aparte tiene que ser un ZIP`);
+        downloadFile = `${id}${crypto.createHash('sha256').update(buf).digest('hex').slice(0, 16)}.zip`;
+        fs.writeFileSync(path.join(paths.downloads, downloadFile), buf);
+        downloadSize = buf.length;
+      }
       games.insertPrepared({
         id, title: g.title, tagline: g.tagline ?? '', description: g.description ?? '', coverFile,
-        buildDir: `${id}/vcatalog`, webZipFile, webZipSize, webSize: dirSize(buildDir),
+        buildDir: `${id}/vcatalog`, downloadFile, downloadSize, webZipFile, webZipSize, webSize: dirSize(buildDir),
         status: g.status === 'hidden' ? 'hidden' : 'published', featured: Boolean(g.featured),
         // Newest first on the shelf follows the catalogue order: the first entry is the newest.
         createdAt: Date.now() - i * 1000,
