@@ -59,13 +59,61 @@
     start();
   });
 
+  // In fullscreen the browser takes Esc for itself, so games that open their menu with Esc kicked you out.
+  // Chrome and Edge let the page keep Esc (holding it still leaves fullscreen); elsewhere we explain how to come back.
+  const canLockKeys = !!(navigator.keyboard && typeof navigator.keyboard.lock === 'function');
+  const fsLabel = fsButton?.lastChild;
+  let wantFs = false;
+
+  function refocus() {
+    if (frame && document.activeElement !== frame) frame.focus();
+  }
+
   fsButton?.addEventListener('click', async () => {
     try {
-      if (document.fullscreenElement) await document.exitFullscreen();
-      else await bezel.requestFullscreen({ navigationUI: 'hide' });
-      frame?.focus();
+      if (document.fullscreenElement) {
+        wantFs = false;
+        await document.exitFullscreen();
+      } else {
+        wantFs = true;
+        await bezel.requestFullscreen({ navigationUI: 'hide' });
+      }
     } catch {
+      wantFs = false;
       say('Tu navegador no ha permitido la pantalla completa.');
     }
+    refocus();
+  });
+
+  document.addEventListener('fullscreenchange', () => {
+    const on = document.fullscreenElement === bezel;
+    if (fsLabel && fsLabel.nodeType === Node.TEXT_NODE) fsLabel.textContent = on ? 'Salir de pantalla completa' : 'Pantalla completa';
+    if (on) {
+      if (canLockKeys) {
+        navigator.keyboard.lock(['Escape']).then(
+          () => say('Pantalla completa: mantén pulsado Esc para salir.'),
+          () => say('Pulsa Esc para salir de la pantalla completa.'),
+        );
+      } else {
+        say('Pulsa Esc para salir de la pantalla completa.');
+      }
+    } else {
+      if (canLockKeys) navigator.keyboard.unlock();
+      // Left by Esc instead of the button: the game keeps the keyboard, and one click brings fullscreen back.
+      say(wantFs ? 'Has salido de la pantalla completa. Pulsa «Pantalla completa» para volver.' : '');
+      wantFs = false;
+    }
+    setTimeout(refocus, 0);
+  });
+
+  // Keys that scroll the page while the game has lost focus go back to the game instead.
+  const GAME_KEYS = new Set([' ', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown', 'Home', 'End']);
+  document.addEventListener('keydown', (e) => {
+    if (!frame || e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return;
+    const t = e.target;
+    if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT|BUTTON|A)$/.test(t.tagName))) return;
+    if (!GAME_KEYS.has(e.key)) return;
+    e.preventDefault();
+    refocus();
   });
 })();
